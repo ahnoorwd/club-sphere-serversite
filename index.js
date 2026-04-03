@@ -1,5 +1,5 @@
 require("dotenv").config();
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion , ObjectId  } = require("mongodb");
 const express = require("express");
 const cors = require("cors");
 
@@ -42,6 +42,17 @@ async function run() {
         .toArray();
 
       res.send(result);
+    });
+
+    app.get("/clubs/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const result = await clubsCollection.findOne(query);
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to fetch club details" });
+      }
     });
 
     // Send a ping to confirm a successful connection
