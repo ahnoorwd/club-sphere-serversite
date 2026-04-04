@@ -1,5 +1,5 @@
 require("dotenv").config();
-const { MongoClient, ServerApiVersion , ObjectId  } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const express = require("express");
 const cors = require("cors");
 
@@ -30,9 +30,10 @@ async function run() {
     await client.connect();
     const db = client.db("clubSphereDB");
 
-    // 👉 HERE you define collections
+    // 👉 HERE is my all  collections
     const clubsCollection = db.collection("clubs");
     const usersCollection = db.collection("users");
+    const membershipsCollection = db.collection("memberships");
 
     app.get("/clubs/featured", async (req, res) => {
       const result = await clubsCollection
@@ -45,13 +46,13 @@ async function run() {
     });
 
     app.get("/clubs", async (req, res) => {
-  try {
-    const result = await clubsCollection.find().toArray();
-    res.send(result);
-  } catch (error) {
-    res.status(500).send({ error: "Failed to fetch clubs" });
-  }
-});
+      try {
+        const result = await clubsCollection.find().toArray();
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to fetch clubs" });
+      }
+    });
 
     app.get("/clubs/:id", async (req, res) => {
       try {
@@ -61,6 +62,84 @@ async function run() {
         res.send(result);
       } catch (error) {
         res.status(500).send({ error: "Failed to fetch club details" });
+      }
+    });
+
+    app.post("/users", async (req, res) => {
+      try {
+        const user = req.body;
+
+        const existingUser = await usersCollection.findOne({
+          email: user.email,
+        });
+
+        if (existingUser) {
+          return res.send({
+            message: "User already exists",
+            inserted: false,
+          });
+        }
+
+        const newUser = {
+          name: user.name || "",
+          email: user.email,
+          photoURL: user.photoURL || "",
+          role: "member",
+          createdAt: new Date(),
+        };
+
+        const result = await usersCollection.insertOne(newUser);
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to save user" });
+      }
+    });
+
+    // check if a user already joined a club
+    app.get("/memberships/check", async (req, res) => {
+      try {
+        const { email, clubId } = req.query;
+
+        const existingMembership = await membershipsCollection.findOne({
+          userEmail: email,
+          clubId: clubId,
+        });
+
+        res.send({ joined: !!existingMembership });
+      } catch (error) {
+        res.status(500).send({ error: "Failed to check membership" });
+      }
+    });
+
+    // create membership for free club join
+    app.post("/memberships", async (req, res) => {
+      try {
+        const membership = req.body;
+
+        const existingMembership = await membershipsCollection.findOne({
+          userEmail: membership.userEmail,
+          clubId: membership.clubId,
+        });
+
+        if (existingMembership) {
+          return res.send({
+            inserted: false,
+            message: "You already joined this club",
+          });
+        }
+
+        const newMembership = {
+          userEmail: membership.userEmail,
+          clubId: membership.clubId,
+          clubName: membership.clubName || "",
+          status: "active",
+          joinedAt: new Date(),
+        };
+
+        const result = await membershipsCollection.insertOne(newMembership);
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to create membership" });
       }
     });
 
