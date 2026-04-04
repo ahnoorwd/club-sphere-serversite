@@ -44,6 +44,15 @@ async function run() {
       res.send(result);
     });
 
+    app.get("/clubs", async (req, res) => {
+  try {
+    const result = await clubsCollection.find().toArray();
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ error: "Failed to fetch clubs" });
+  }
+});
+
     app.get("/clubs/:id", async (req, res) => {
       try {
         const id = req.params.id;
