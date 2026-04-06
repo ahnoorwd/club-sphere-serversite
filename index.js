@@ -2,6 +2,7 @@ require("dotenv").config();
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const express = require("express");
 const cors = require("cors");
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -34,6 +35,7 @@ async function run() {
     const clubsCollection = db.collection("clubs");
     const usersCollection = db.collection("users");
     const membershipsCollection = db.collection("memberships");
+    const paymentsCollection = db.collection("payments");
 
     app.get("/clubs/featured", async (req, res) => {
       const result = await clubsCollection
@@ -142,6 +144,110 @@ async function run() {
         res.status(500).send({ error: "Failed to create membership" });
       }
     });
+
+    // stripe activity 
+
+
+
+    app.post("/create-payment-intent", async (req, res) => {
+  try {
+    const { amount } = req.body;
+
+    const amountInCents = parseInt(amount * 100);
+
+    if (!amount || amountInCents < 1) {
+      return res.status(400).send({ error: "Invalid amount" });
+    }
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountInCents,
+      currency: "usd",
+      payment_method_types: ["card"],
+    });
+
+    res.send({
+      clientSecret: paymentIntent.client_secret,
+    });
+  } catch (error) {
+    res.status(500).send({ error: "Failed to create payment intent" });
+  }
+});
+
+
+    // Add payment save route
+
+
+
+    app.post("/payments", async (req, res) => {
+  try {
+    const payment = req.body;
+
+    const existingMembership = await membershipsCollection.findOne({
+      userEmail: payment.userEmail,
+      clubId: payment.clubId,
+    });
+
+    if (existingMembership) {
+      return res.send({
+        inserted: false,
+        message: "User already joined this club",
+      });
+    }
+
+    const paymentDoc = {
+      userEmail: payment.userEmail,
+      amount: payment.amount,
+      type: "membership",
+      clubId: payment.clubId,
+      clubName: payment.clubName,
+      stripePaymentIntentId: payment.stripePaymentIntentId,
+      status: "paid",
+      createdAt: new Date(),
+    };
+
+    const paymentResult = await paymentsCollection.insertOne(paymentDoc);
+
+    const membershipDoc = {
+      userEmail: payment.userEmail,
+      clubId: payment.clubId,
+      clubName: payment.clubName,
+      status: "active",
+      paymentId: payment.stripePaymentIntentId,
+      joinedAt: new Date(),
+    };
+
+    const membershipResult = await membershipsCollection.insertOne(
+      membershipDoc
+    );
+
+    res.send({
+      inserted: true,
+      paymentResult,
+      membershipResult,
+    });
+  } catch (error) {
+    res.status(500).send({ error: "Failed to save payment and membership" });
+  }
+});
+ 
+   
+
+     app.get("/memberships/user/:email", async (req, res) => {
+  try {
+    const email = req.params.email;
+
+    const result = await membershipsCollection
+      .find({ userEmail: email })
+      .sort({ joinedAt: -1 })
+      .toArray();
+
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ error: "Failed to fetch user memberships" });
+  }
+});
+
+   
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
