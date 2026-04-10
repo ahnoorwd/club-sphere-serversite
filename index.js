@@ -47,14 +47,33 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/clubs", async (req, res) => {
-      try {
-        const result = await clubsCollection.find().toArray();
-        res.send(result);
-      } catch (error) {
-        res.status(500).send({ error: "Failed to fetch clubs" });
-      }
-    });
+    // app.get("/clubs", async (req, res) => {
+    //   try {
+    //     const result = await clubsCollection.find().toArray();
+    //     res.send(result);
+    //   } catch (error) {
+    //     res.status(500).send({ error: "Failed to fetch clubs" });
+    //   }
+    // });
+
+    // 04|10|26 
+
+  app.get("/clubs", async (req, res) => {
+  try {
+    const email = req.query.email;
+
+    let query = {};
+    if (email) {
+      query = { managerEmail: email };
+    }
+
+    const result = await clubsCollection.find(query).toArray();
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ error: "Failed to fetch clubs" });
+  }
+});
+
 
     app.get("/clubs/:id", async (req, res) => {
       try {
@@ -82,6 +101,31 @@ async function run() {
         res.status(500).send({ error: "Failed to get user role" });
       }
     });
+
+// 4|10|26 
+    
+    app.post("/clubs", async (req, res) => {
+  try {
+    const club = req.body;
+
+    const newClub = {
+      ...club,
+      membershipFee: Number(club.membershipFee) || 0,
+      status: "pending",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const result = await clubsCollection.insertOne(newClub);
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ error: "Failed to create club" });
+  }
+});
+
+
+
+
 
     app.post("/users", async (req, res) => {
       try {
