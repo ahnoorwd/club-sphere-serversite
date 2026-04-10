@@ -66,6 +66,22 @@ async function run() {
         res.status(500).send({ error: "Failed to fetch club details" });
       }
     });
+    
+
+    app.get("/users/role/:email", async (req, res) => {
+      try {
+        const email = req.params.email;
+        const user = await usersCollection.findOne({ email });
+
+        if (!user) {
+          return res.status(404).send({ message: "User not found" });
+        }
+
+        res.send({ role: user.role });
+      } catch (error) {
+        res.status(500).send({ error: "Failed to get user role" });
+      }
+    });
 
     app.post("/users", async (req, res) => {
       try {
@@ -145,109 +161,116 @@ async function run() {
       }
     });
 
-    // stripe activity 
-
-
+    // stripe activity
 
     app.post("/create-payment-intent", async (req, res) => {
-  try {
-    const { amount } = req.body;
+      try {
+        const { amount } = req.body;
 
-    const amountInCents = parseInt(amount * 100);
+        const amountInCents = parseInt(amount * 100);
 
-    if (!amount || amountInCents < 1) {
-      return res.status(400).send({ error: "Invalid amount" });
-    }
+        if (!amount || amountInCents < 1) {
+          return res.status(400).send({ error: "Invalid amount" });
+        }
 
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: amountInCents,
-      currency: "usd",
-      payment_method_types: ["card"],
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: amountInCents,
+          currency: "usd",
+          payment_method_types: ["card"],
+        });
+
+        res.send({
+          clientSecret: paymentIntent.client_secret,
+        });
+      } catch (error) {
+        res.status(500).send({ error: "Failed to create payment intent" });
+      }
     });
-
-    res.send({
-      clientSecret: paymentIntent.client_secret,
-    });
-  } catch (error) {
-    res.status(500).send({ error: "Failed to create payment intent" });
-  }
-});
-
 
     // Add payment save route
 
-
-
     app.post("/payments", async (req, res) => {
-  try {
-    const payment = req.body;
+      try {
+        const payment = req.body;
 
-    const existingMembership = await membershipsCollection.findOne({
-      userEmail: payment.userEmail,
-      clubId: payment.clubId,
+        const existingMembership = await membershipsCollection.findOne({
+          userEmail: payment.userEmail,
+          clubId: payment.clubId,
+        });
+
+        if (existingMembership) {
+          return res.send({
+            inserted: false,
+            message: "User already joined this club",
+          });
+        }
+
+        const paymentDoc = {
+          userEmail: payment.userEmail,
+          amount: payment.amount,
+          type: "membership",
+          clubId: payment.clubId,
+          clubName: payment.clubName,
+          stripePaymentIntentId: payment.stripePaymentIntentId,
+          status: "paid",
+          createdAt: new Date(),
+        };
+
+        const paymentResult = await paymentsCollection.insertOne(paymentDoc);
+
+        const membershipDoc = {
+          userEmail: payment.userEmail,
+          clubId: payment.clubId,
+          clubName: payment.clubName,
+          status: "active",
+          paymentId: payment.stripePaymentIntentId,
+          joinedAt: new Date(),
+        };
+
+        const membershipResult =
+          await membershipsCollection.insertOne(membershipDoc);
+
+        res.send({
+          inserted: true,
+          paymentResult,
+          membershipResult,
+        });
+      } catch (error) {
+        res
+          .status(500)
+          .send({ error: "Failed to save payment and membership" });
+      }
     });
 
-    if (existingMembership) {
-      return res.send({
-        inserted: false,
-        message: "User already joined this club",
-      });
-    }
+    app.get("/memberships/user/:email", async (req, res) => {
+      try {
+        const email = req.params.email;
 
-    const paymentDoc = {
-      userEmail: payment.userEmail,
-      amount: payment.amount,
-      type: "membership",
-      clubId: payment.clubId,
-      clubName: payment.clubName,
-      stripePaymentIntentId: payment.stripePaymentIntentId,
-      status: "paid",
-      createdAt: new Date(),
-    };
+        const result = await membershipsCollection
+          .find({ userEmail: email })
+          .sort({ joinedAt: -1 })
+          .toArray();
 
-    const paymentResult = await paymentsCollection.insertOne(paymentDoc);
-
-    const membershipDoc = {
-      userEmail: payment.userEmail,
-      clubId: payment.clubId,
-      clubName: payment.clubName,
-      status: "active",
-      paymentId: payment.stripePaymentIntentId,
-      joinedAt: new Date(),
-    };
-
-    const membershipResult = await membershipsCollection.insertOne(
-      membershipDoc
-    );
-
-    res.send({
-      inserted: true,
-      paymentResult,
-      membershipResult,
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to fetch user memberships" });
+      }
     });
-  } catch (error) {
-    res.status(500).send({ error: "Failed to save payment and membership" });
-  }
-});
- 
-   
 
-     app.get("/memberships/user/:email", async (req, res) => {
-  try {
-    const email = req.params.email;
+    app.get("/payments/user/:email", async (req, res) => {
+      try {
+        const email = req.params.email;
 
-    const result = await membershipsCollection
-      .find({ userEmail: email })
-      .sort({ joinedAt: -1 })
-      .toArray();
+        const result = await paymentsCollection
+          .find({ userEmail: email })
+          .sort({ createdAt: -1 })
+          .toArray();
 
-    res.send(result);
-  } catch (error) {
-    res.status(500).send({ error: "Failed to fetch user memberships" });
-  }
-});
-
-   
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to fetch payment history" });
+      }
+    });
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
