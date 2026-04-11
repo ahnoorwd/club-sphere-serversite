@@ -58,13 +58,38 @@ async function run() {
 
     // 04|10|26 
 
-  app.get("/clubs", async (req, res) => {
+//   app.get("/clubs", async (req, res) => {
+//   try {
+//     const email = req.query.email;
+
+//     let query = {};
+//     if (email) {
+//       query = { managerEmail: email };
+//     }
+
+//     const result = await clubsCollection.find(query).toArray();
+//     res.send(result);
+//   } catch (error) {
+//     res.status(500).send({ error: "Failed to fetch clubs" });
+//   }
+// });
+
+
+  //  11||04||26
+
+      app.get("/clubs", async (req, res) => {
   try {
     const email = req.query.email;
+    const status = req.query.status;
 
     let query = {};
+
     if (email) {
-      query = { managerEmail: email };
+      query.managerEmail = email;
+    }
+
+    if (status) {
+      query.status = status;
     }
 
     const result = await clubsCollection.find(query).toArray();
@@ -73,6 +98,8 @@ async function run() {
     res.status(500).send({ error: "Failed to fetch clubs" });
   }
 });
+
+
 
 
     app.get("/clubs/:id", async (req, res) => {
@@ -85,6 +112,29 @@ async function run() {
         res.status(500).send({ error: "Failed to fetch club details" });
       }
     });
+
+  //  11|04|26
+
+    app.patch("/clubs/status/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { status } = req.body;
+
+    const result = await clubsCollection.updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          status,
+          updatedAt: new Date(),
+        },
+      }
+    );
+
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ error: "Failed to update club status" });
+  }
+});
     
 
     app.get("/users/role/:email", async (req, res) => {
