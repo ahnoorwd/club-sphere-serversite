@@ -36,6 +36,7 @@ async function run() {
     const usersCollection = db.collection("users");
     const membershipsCollection = db.collection("memberships");
     const paymentsCollection = db.collection("payments");
+    const eventsCollection = db.collection("events");
 
     app.get("/clubs/featured", async (req, res) => {
       const result = await clubsCollection
@@ -58,46 +59,46 @@ async function run() {
 
     // 04|10|26 
 
-//   app.get("/clubs", async (req, res) => {
-//   try {
-//     const email = req.query.email;
+    //   app.get("/clubs", async (req, res) => {
+    //   try {
+    //     const email = req.query.email;
 
-//     let query = {};
-//     if (email) {
-//       query = { managerEmail: email };
-//     }
+    //     let query = {};
+    //     if (email) {
+    //       query = { managerEmail: email };
+    //     }
 
-//     const result = await clubsCollection.find(query).toArray();
-//     res.send(result);
-//   } catch (error) {
-//     res.status(500).send({ error: "Failed to fetch clubs" });
-//   }
-// });
+    //     const result = await clubsCollection.find(query).toArray();
+    //     res.send(result);
+    //   } catch (error) {
+    //     res.status(500).send({ error: "Failed to fetch clubs" });
+    //   }
+    // });
 
 
-  //  11||04||26
+    //  11||04||26
 
-      app.get("/clubs", async (req, res) => {
-  try {
-    const email = req.query.email;
-    const status = req.query.status;
+    app.get("/clubs", async (req, res) => {
+      try {
+        const email = req.query.email;
+        const status = req.query.status;
 
-    let query = {};
+        let query = {};
 
-    if (email) {
-      query.managerEmail = email;
-    }
+        if (email) {
+          query.managerEmail = email;
+        }
 
-    if (status) {
-      query.status = status;
-    }
+        if (status) {
+          query.status = status;
+        }
 
-    const result = await clubsCollection.find(query).toArray();
-    res.send(result);
-  } catch (error) {
-    res.status(500).send({ error: "Failed to fetch clubs" });
-  }
-});
+        const result = await clubsCollection.find(query).toArray();
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to fetch clubs" });
+      }
+    });
 
 
 
@@ -112,30 +113,62 @@ async function run() {
         res.status(500).send({ error: "Failed to fetch club details" });
       }
     });
+    //  18||04||26 
 
-  //  11|04|26
+    app.get("/events", async (req, res) => {
+      try {
+        const result = await eventsCollection
+          .find()
+          .sort({ eventDate: 1 })
+          .toArray();
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to fetch events" });
+      }
+    });
+
+
+    app.get("/events/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const result = await eventsCollection.findOne({
+          _id: new ObjectId(id),
+        });
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to fetch event details" });
+      }
+    });
+
+
+
+
+
+    //  11|04|26
 
     app.patch("/clubs/status/:id", async (req, res) => {
-  try {
-    const id = req.params.id;
-    const { status } = req.body;
+      try {
+        const id = req.params.id;
+        const { status } = req.body;
 
-    const result = await clubsCollection.updateOne(
-      { _id: new ObjectId(id) },
-      {
-        $set: {
-          status,
-          updatedAt: new Date(),
-        },
+        const result = await clubsCollection.updateOne(
+          { _id: new ObjectId(id) },
+          {
+            $set: {
+              status,
+              updatedAt: new Date(),
+            },
+          }
+        );
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to update club status" });
       }
-    );
+    });
 
-    res.send(result);
-  } catch (error) {
-    res.status(500).send({ error: "Failed to update club status" });
-  }
-});
-    
 
     app.get("/users/role/:email", async (req, res) => {
       try {
@@ -152,26 +185,26 @@ async function run() {
       }
     });
 
-// 4|10|26 
-    
+    // 4|10|26 
+
     app.post("/clubs", async (req, res) => {
-  try {
-    const club = req.body;
+      try {
+        const club = req.body;
 
-    const newClub = {
-      ...club,
-      membershipFee: Number(club.membershipFee) || 0,
-      status: "pending",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+        const newClub = {
+          ...club,
+          membershipFee: Number(club.membershipFee) || 0,
+          status: "pending",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
 
-    const result = await clubsCollection.insertOne(newClub);
-    res.send(result);
-  } catch (error) {
-    res.status(500).send({ error: "Failed to create club" });
-  }
-});
+        const result = await clubsCollection.insertOne(newClub);
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to create club" });
+      }
+    });
 
 
 
