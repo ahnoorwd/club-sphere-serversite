@@ -36,6 +36,7 @@ async function run() {
     const usersCollection = db.collection("users");
     const membershipsCollection = db.collection("memberships");
     const paymentsCollection = db.collection("payments");
+    // const eventsCollection = db.collection("events");
 
     app.get("/clubs/featured", async (req, res) => {
       const result = await clubsCollection
@@ -46,6 +47,10 @@ async function run() {
 
       res.send(result);
     });
+
+
+
+
 
     // app.get("/clubs", async (req, res) => {
     //   try {
