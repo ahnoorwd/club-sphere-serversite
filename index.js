@@ -57,7 +57,7 @@ async function run() {
     //   }
     // });
 
-    // 04|10|26 
+    // 04|10|26
 
     //   app.get("/clubs", async (req, res) => {
     //   try {
@@ -74,7 +74,6 @@ async function run() {
     //     res.status(500).send({ error: "Failed to fetch clubs" });
     //   }
     // });
-
 
     //  11||04||26
 
@@ -100,9 +99,6 @@ async function run() {
       }
     });
 
-
-
-
     app.get("/clubs/:id", async (req, res) => {
       try {
         const id = req.params.id;
@@ -113,7 +109,7 @@ async function run() {
         res.status(500).send({ error: "Failed to fetch club details" });
       }
     });
-    //  18||04||26 
+    //  18||04||26
 
     app.get("/events", async (req, res) => {
       try {
@@ -128,7 +124,6 @@ async function run() {
       }
     });
 
-
     app.get("/events/:id", async (req, res) => {
       try {
         const id = req.params.id;
@@ -142,9 +137,43 @@ async function run() {
       }
     });
 
+    // 4||22||26
 
+    app.get("/manager/approved-clubs/:email", async (req, res) => {
+      try {
+        const email = req.params.email;
 
+        const result = await clubsCollection
+          .find({
+            managerEmail: email,
+            status: "approved",
+          })
+          .toArray();
 
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to fetch approved clubs" });
+      }
+    });
+
+    app.post("/events", async (req, res) => {
+      try {
+        const eventData = req.body;
+
+        const newEvent = {
+          ...eventData,
+          isPaid: eventData.isPaid === true || eventData.isPaid === "true",
+          eventFee: Number(eventData.eventFee) || 0,
+          maxAttendees: Number(eventData.maxAttendees) || 0,
+          createdAt: new Date(),
+        };
+
+        const result = await eventsCollection.insertOne(newEvent);
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to create event" });
+      }
+    });
 
     //  11|04|26
 
@@ -160,7 +189,7 @@ async function run() {
               status,
               updatedAt: new Date(),
             },
-          }
+          },
         );
 
         res.send(result);
@@ -168,7 +197,6 @@ async function run() {
         res.status(500).send({ error: "Failed to update club status" });
       }
     });
-
 
     app.get("/users/role/:email", async (req, res) => {
       try {
@@ -185,7 +213,7 @@ async function run() {
       }
     });
 
-    // 4|10|26 
+    // 4|10|26
 
     app.post("/clubs", async (req, res) => {
       try {
@@ -205,10 +233,6 @@ async function run() {
         res.status(500).send({ error: "Failed to create club" });
       }
     });
-
-
-
-
 
     app.post("/users", async (req, res) => {
       try {
