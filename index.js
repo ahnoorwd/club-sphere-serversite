@@ -37,6 +37,7 @@ async function run() {
     const membershipsCollection = db.collection("memberships");
     const paymentsCollection = db.collection("payments");
     const eventsCollection = db.collection("events");
+    const eventRegistrationsCollection = db.collection("eventRegistrations");
 
     app.get("/clubs/featured", async (req, res) => {
       const result = await clubsCollection
@@ -137,6 +138,145 @@ async function run() {
       }
     });
 
+    app.get("/event-registrations/check", async (req, res) => {
+      try {
+        const { email, eventId } = req.query;
+
+        const existingRegistration = await eventRegistrationsCollection.findOne(
+          {
+            userEmail: email,
+            eventId: eventId,
+          },
+        );
+
+        res.send({ registered: !!existingRegistration });
+      } catch (error) {
+        res.status(500).send({ error: "Failed to check event registration" });
+      }
+    });
+
+    app.post("/event-registrations", async (req, res) => {
+      try {
+        const registration = req.body;
+
+        const existingRegistration = await eventRegistrationsCollection.findOne(
+          {
+            userEmail: registration.userEmail,
+            eventId: registration.eventId,
+          },
+        );
+
+        if (existingRegistration) {
+          return res.send({
+            message: "Already registered",
+            insertedId: null,
+          });
+        }
+
+        const newRegistration = {
+          ...registration,
+          status: "registered",
+          registeredAt: new Date(),
+        };
+
+        const result =
+          await eventRegistrationsCollection.insertOne(newRegistration);
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to register event" });
+      }
+    });
+
+    app.get("/event-registrations/user/:email", async (req, res) => {
+      try {
+        const email = req.params.email;
+
+        const registrations = await eventRegistrationsCollection
+          .find({ userEmail: email })
+          .sort({ registeredAt: -1 })
+          .toArray();
+
+        const eventIds = registrations.map((registration) => {
+          return new ObjectId(registration.eventId);
+        });
+
+        const events = await eventsCollection
+          .find({ _id: { $in: eventIds } })
+          .toArray();
+
+        const registeredEvents = registrations.map((registration) => {
+          const event = events.find(
+            (event) => event._id.toString() === registration.eventId,
+          );
+
+          return {
+            ...registration,
+            event,
+          };
+        });
+
+        res.send(registeredEvents);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to fetch registered events" });
+      }
+    });
+
+    app.post("/event-payments", async (req, res) => {
+      try {
+        const payment = req.body;
+
+        const existingRegistration = await eventRegistrationsCollection.findOne(
+          {
+            userEmail: payment.userEmail,
+            eventId: payment.eventId,
+          },
+        );
+
+        if (existingRegistration) {
+          return res.send({
+            inserted: false,
+            message: "User already registered for this event",
+          });
+        }
+
+        const paymentDoc = {
+          userEmail: payment.userEmail,
+          amount: payment.amount,
+          type: "event",
+          eventId: payment.eventId,
+          eventTitle: payment.eventTitle,
+          clubId: payment.clubId,
+          stripePaymentIntentId: payment.stripePaymentIntentId,
+          status: "paid",
+          createdAt: new Date(),
+        };
+
+        const paymentResult = await paymentsCollection.insertOne(paymentDoc);
+
+        const registrationDoc = {
+          userEmail: payment.userEmail,
+          eventId: payment.eventId,
+          clubId: payment.clubId,
+          status: "registered",
+          paymentId: payment.stripePaymentIntentId,
+          registeredAt: new Date(),
+        };
+
+        const registrationResult =
+          await eventRegistrationsCollection.insertOne(registrationDoc);
+
+        res.send({
+          inserted: true,
+          paymentResult,
+          registrationResult,
+        });
+      } catch (error) {
+        res.status(500).send({
+          error: "Failed to save event payment and registration",
+        });
+      }
+    });
+
     // 4||22||26
 
     app.get("/manager/approved-clubs/:email", async (req, res) => {
@@ -153,6 +293,72 @@ async function run() {
         res.send(result);
       } catch (error) {
         res.status(500).send({ error: "Failed to fetch approved clubs" });
+      }
+    });
+
+    // 04||24||26
+
+    app.get("/events/manager/:email", async (req, res) => {
+      try {
+        const email = req.params.email;
+
+        const managedClubs = await clubsCollection
+          .find({ managerEmail: email })
+          .project({ _id: 1 })
+          .toArray();
+
+        const clubIds = managedClubs.map((club) => club._id.toString());
+
+        const result = await eventsCollection
+          .find({ clubId: { $in: clubIds } })
+          .sort({ eventDate: 1 })
+          .toArray();
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to fetch manager events" });
+      }
+    });
+
+    app.patch("/events/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const eventData = req.body;
+
+        const updatedEvent = {
+          title: eventData.title,
+          description: eventData.description,
+          eventDate: eventData.eventDate,
+          location: eventData.location,
+          eventImage: eventData.eventImage,
+          isPaid: eventData.isPaid === true || eventData.isPaid === "true",
+          eventFee: Number(eventData.eventFee) || 0,
+          maxAttendees: Number(eventData.maxAttendees) || 0,
+          updatedAt: new Date(),
+        };
+
+        const result = await eventsCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: updatedEvent },
+        );
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to update event" });
+      }
+    });
+
+    app.delete("/events/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+
+        const result = await eventsCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to delete event" });
       }
     });
 
