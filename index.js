@@ -39,6 +39,40 @@ async function run() {
     const eventsCollection = db.collection("events");
     const eventRegistrationsCollection = db.collection("eventRegistrations");
 
+    app.get("/users", async (req, res) => {
+      try {
+        const result = await usersCollection
+          .find()
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to fetch users" });
+      }
+    });
+
+    app.patch("/users/role/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const { role } = req.body;
+
+        const result = await usersCollection.updateOne(
+          { _id: new ObjectId(id) },
+          {
+            $set: {
+              role,
+              updatedAt: new Date(),
+            },
+          },
+        );
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to update user role" });
+      }
+    });
+
     app.get("/clubs/featured", async (req, res) => {
       const result = await clubsCollection
         .find({ status: "approved" })
@@ -155,6 +189,74 @@ async function run() {
       }
     });
 
+    //  here i checked the capacity of the event if any it will be deleted 29 04 26
+
+    app.get("/events/:id/capacity", async (req, res) => {
+      try {
+        const id = req.params.id;
+
+        const event = await eventsCollection.findOne({
+          _id: new ObjectId(id),
+        });
+
+        if (!event) {
+          return res.status(404).send({ error: "Event not found" });
+        }
+
+        const registeredCount =
+          await eventRegistrationsCollection.countDocuments({
+            eventId: id,
+          });
+
+        const maxAttendees = Number(event.maxAttendees) || 0;
+        const availableSeats = maxAttendees - registeredCount;
+        const isFull = maxAttendees > 0 && registeredCount >= maxAttendees;
+
+        res.send({
+          maxAttendees,
+          registeredCount,
+          availableSeats: availableSeats < 0 ? 0 : availableSeats,
+          isFull,
+        });
+      } catch (error) {
+        res.status(500).send({ error: "Failed to check event capacity" });
+      }
+    });
+
+    // here i upgraded with confusion 29 04 26 if have ant issues the prevous functinality uncoment it
+
+    // app.post("/event-registrations", async (req, res) => {
+    //   try {
+    //     const registration = req.body;
+
+    //     const existingRegistration = await eventRegistrationsCollection.findOne(
+    //       {
+    //         userEmail: registration.userEmail,
+    //         eventId: registration.eventId,
+    //       },
+    //     );
+
+    //     if (existingRegistration) {
+    //       return res.send({
+    //         message: "Already registered",
+    //         insertedId: null,
+    //       });
+    //     }
+
+    //     const newRegistration = {
+    //       ...registration,
+    //       status: "registered",
+    //       registeredAt: new Date(),
+    //     };
+
+    //     const result =
+    //       await eventRegistrationsCollection.insertOne(newRegistration);
+    //     res.send(result);
+    //   } catch (error) {
+    //     res.status(500).send({ error: "Failed to register event" });
+    //   }
+    // });
+
     app.post("/event-registrations", async (req, res) => {
       try {
         const registration = req.body;
@@ -170,6 +272,29 @@ async function run() {
           return res.send({
             message: "Already registered",
             insertedId: null,
+          });
+        }
+
+        const event = await eventsCollection.findOne({
+          _id: new ObjectId(registration.eventId),
+        });
+
+        if (!event) {
+          return res.status(404).send({ message: "Event not found" });
+        }
+
+        const registeredCount =
+          await eventRegistrationsCollection.countDocuments({
+            eventId: registration.eventId,
+          });
+
+        const maxAttendees = Number(event.maxAttendees) || 0;
+
+        if (maxAttendees > 0 && registeredCount >= maxAttendees) {
+          return res.send({
+            insertedId: null,
+            message: "Event is already full",
+            full: true,
           });
         }
 
@@ -221,6 +346,65 @@ async function run() {
       }
     });
 
+    //  here i upgraded the eventpayment if have any problem in my funvtinality delete it
+
+    // app.post("/event-payments", async (req, res) => {
+    //   try {
+    //     const payment = req.body;
+
+    //     const existingRegistration = await eventRegistrationsCollection.findOne(
+    //       {
+    //         userEmail: payment.userEmail,
+    //         eventId: payment.eventId,
+    //       },
+    //     );
+
+    //     if (existingRegistration) {
+    //       return res.send({
+    //         inserted: false,
+    //         message: "User already registered for this event",
+    //       });
+    //     }
+
+    //     const paymentDoc = {
+    //       userEmail: payment.userEmail,
+    //       amount: payment.amount,
+    //       type: "event",
+    //       eventId: payment.eventId,
+    //       eventTitle: payment.eventTitle,
+    //       clubId: payment.clubId,
+    //       stripePaymentIntentId: payment.stripePaymentIntentId,
+    //       status: "paid",
+    //       createdAt: new Date(),
+    //     };
+
+    //     const paymentResult = await paymentsCollection.insertOne(paymentDoc);
+
+    //     const registrationDoc = {
+    //       userEmail: payment.userEmail,
+    //       eventId: payment.eventId,
+    //       clubId: payment.clubId,
+    //       status: "registered",
+    //       paymentId: payment.stripePaymentIntentId,
+    //       registeredAt: new Date(),
+    //     };
+
+    //     const registrationResult =
+    //       await eventRegistrationsCollection.insertOne(registrationDoc);
+
+    //     res.send({
+    //       inserted: true,
+    //       paymentResult,
+    //       registrationResult,
+    //     });
+    //   } catch (error) {
+    //     res.status(500).send({
+    //       error: "Failed to save event payment and registration",
+    //     });
+    //   }
+
+    // });
+
     app.post("/event-payments", async (req, res) => {
       try {
         const payment = req.body;
@@ -239,9 +423,36 @@ async function run() {
           });
         }
 
+        // Capacity check
+        const event = await eventsCollection.findOne({
+          _id: new ObjectId(payment.eventId),
+        });
+
+        if (!event) {
+          return res.status(404).send({
+            inserted: false,
+            message: "Event not found",
+          });
+        }
+
+        const registeredCount =
+          await eventRegistrationsCollection.countDocuments({
+            eventId: payment.eventId,
+          });
+
+        const maxAttendees = Number(event.maxAttendees) || 0;
+
+        if (maxAttendees > 0 && registeredCount >= maxAttendees) {
+          return res.send({
+            inserted: false,
+            full: true,
+            message: "Event is already full",
+          });
+        }
+
         const paymentDoc = {
           userEmail: payment.userEmail,
-          amount: payment.amount,
+          amount: Number(payment.amount) || 0,
           type: "event",
           eventId: payment.eventId,
           eventTitle: payment.eventTitle,
@@ -483,6 +694,226 @@ async function run() {
         res.send({ joined: !!existingMembership });
       } catch (error) {
         res.status(500).send({ error: "Failed to check membership" });
+      }
+    });
+
+    //  29||04||26 profile bases status update
+
+    app.get("/profile-stats/:email", async (req, res) => {
+      try {
+        const email = req.params.email;
+
+        const user = await usersCollection.findOne({ email });
+
+        if (!user) {
+          return res.status(404).send({ error: "User not found" });
+        }
+
+        const role = user.role || "member";
+
+        let stats = {
+          role,
+        };
+
+        if (role === "member") {
+          const joinedClubs = await membershipsCollection.countDocuments({
+            userEmail: email,
+          });
+
+          const registeredEvents =
+            await eventRegistrationsCollection.countDocuments({
+              userEmail: email,
+            });
+
+          const payments = await paymentsCollection.countDocuments({
+            userEmail: email,
+          });
+
+          stats = {
+            role,
+            joinedClubs,
+            registeredEvents,
+            payments,
+          };
+        }
+
+        if (role === "clubManager") {
+          const createdClubs = await clubsCollection.countDocuments({
+            managerEmail: email,
+          });
+
+          const managedClubs = await clubsCollection
+            .find({ managerEmail: email })
+            .project({ _id: 1 })
+            .toArray();
+
+          const clubIds = managedClubs.map((club) => club._id.toString());
+
+          const createdEvents = await eventsCollection.countDocuments({
+            clubId: { $in: clubIds },
+          });
+
+          stats = {
+            role,
+            createdClubs,
+            createdEvents,
+          };
+        }
+
+        if (role === "admin") {
+          const totalUsers = await usersCollection.countDocuments();
+          const totalClubs = await clubsCollection.countDocuments();
+          const totalPayments = await paymentsCollection.countDocuments();
+
+          stats = {
+            role,
+            totalUsers,
+            totalClubs,
+            totalPayments,
+          };
+        }
+
+        res.send(stats);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to fetch profile stats" });
+      }
+    });
+
+    //  29||04||26 admin analatics update
+
+    app.get("/admin/analytics", async (req, res) => {
+      try {
+        const totalUsers = await usersCollection.countDocuments();
+        const totalClubs = await clubsCollection.countDocuments();
+        const totalEvents = await eventsCollection.countDocuments();
+        const totalPayments = await paymentsCollection.countDocuments();
+
+        const payments = await paymentsCollection.find().toArray();
+
+        const totalRevenue = payments.reduce((sum, payment) => {
+          return sum + Number(payment.amount || 0);
+        }, 0);
+
+        const approvedClubs = await clubsCollection.countDocuments({
+          status: "approved",
+        });
+
+        const pendingClubs = await clubsCollection.countDocuments({
+          status: "pending",
+        });
+
+        const rejectedClubs = await clubsCollection.countDocuments({
+          status: "rejected",
+        });
+
+        const members = await usersCollection.countDocuments({
+          role: "member",
+        });
+
+        const managers = await usersCollection.countDocuments({
+          role: "clubManager",
+        });
+
+        const admins = await usersCollection.countDocuments({
+          role: "admin",
+        });
+
+        const membershipPayments = await paymentsCollection.countDocuments({
+          type: "membership",
+        });
+
+        const eventPayments = await paymentsCollection.countDocuments({
+          type: "event",
+        });
+
+        res.send({
+          overview: {
+            totalUsers,
+            totalClubs,
+            totalEvents,
+            totalPayments,
+            totalRevenue,
+          },
+          clubStatus: [
+            { name: "Approved", value: approvedClubs },
+            { name: "Pending", value: pendingClubs },
+            { name: "Rejected", value: rejectedClubs },
+          ],
+          userRoles: [
+            { name: "Members", value: members },
+            { name: "Managers", value: managers },
+            { name: "Admins", value: admins },
+          ],
+          paymentTypes: [
+            { name: "Membership", value: membershipPayments },
+            { name: "Event", value: eventPayments },
+          ],
+        });
+      } catch (error) {
+        res.status(500).send({ error: "Failed to fetch analytics" });
+      }
+    });
+
+    // 29||04||26 member in stats update
+
+    app.get("/member/dashboard-stats/:email", async (req, res) => {
+      try {
+        const email = req.params.email;
+
+        const joinedClubs = await membershipsCollection.countDocuments({
+          userEmail: email,
+        });
+
+        const registeredEvents = await eventRegistrationsCollection
+          .find({ userEmail: email })
+          .toArray();
+
+        const totalPayments = await paymentsCollection.countDocuments({
+          userEmail: email,
+        });
+
+        const eventIds = registeredEvents.map((registration) => {
+          return new ObjectId(registration.eventId);
+        });
+
+        const events = await eventsCollection
+          .find({ _id: { $in: eventIds } })
+          .sort({ eventDate: 1 })
+          .toArray();
+
+        const today = new Date();
+
+        const upcomingEvents = events.filter((event) => {
+          return new Date(event.eventDate) >= today;
+        });
+
+        res.send({
+          joinedClubs,
+          registeredEvents: registeredEvents.length,
+          totalPayments,
+          upcomingEventsCount: upcomingEvents.length,
+          upcomingEvents: upcomingEvents.slice(0, 3),
+        });
+      } catch (error) {
+        res
+          .status(500)
+          .send({ error: "Failed to fetch member dashboard stats" });
+      }
+    });
+
+    // 29||04||26 mabmership leave funnctinality
+
+    app.delete("/memberships/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+
+        const result = await membershipsCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ error: "Failed to leave club" });
       }
     });
 
