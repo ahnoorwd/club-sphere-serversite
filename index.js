@@ -1030,18 +1030,75 @@ async function run() {
       }
     });
 
+    // app.get("/memberships/user/:email", async (req, res) => {
+    //   try {
+    //     const email = req.params.email;
+
+    //     const result = await membershipsCollection
+    //       .find({ userEmail: email })
+    //       .sort({ joinedAt: -1 })
+    //       .toArray();
+
+    //     res.send(result);
+    //   } catch (error) {
+    //     res.status(500).send({ error: "Failed to fetch user memberships" });
+    //   }
+    // });
+
+    //  01||05||26
+
     app.get("/memberships/user/:email", async (req, res) => {
       try {
         const email = req.params.email;
 
-        const result = await membershipsCollection
+        const memberships = await membershipsCollection
           .find({ userEmail: email })
           .sort({ joinedAt: -1 })
           .toArray();
 
+        const clubIds = memberships.map((membership) => {
+          return new ObjectId(membership.clubId);
+        });
+
+        const clubs = await clubsCollection
+          .find({ _id: { $in: clubIds } })
+          .toArray();
+
+        const result = memberships.map((membership) => {
+          const club = clubs.find(
+            (club) => club._id.toString() === membership.clubId,
+          );
+
+          return {
+            ...membership,
+            clubInfo: club || null,
+          };
+        });
+
         res.send(result);
       } catch (error) {
-        res.status(500).send({ error: "Failed to fetch user memberships" });
+        res.status(500).send({
+          error: "Failed to fetch user memberships",
+        });
+      }
+    });
+
+    //  01||05||26
+
+    app.get("/community-leaders", async (req, res) => {
+      try {
+        const leaders = await usersCollection
+          .find({
+            role: { $in: ["admin", "clubManager"] },
+          })
+          .sort({ role: 1, createdAt: -1 })
+          .toArray();
+
+        res.send(leaders);
+      } catch (error) {
+        res.status(500).send({
+          error: "Failed to fetch community leaders",
+        });
       }
     });
 
