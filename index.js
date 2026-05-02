@@ -14,7 +14,7 @@ app.use(
   cors({
     origin: [
       "http://localhost:5173",
-      "https://*.netlify.app"
+       "https://clubsphere-appp.netlify.app"
     ],
     credentials: true,
   })
