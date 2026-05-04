@@ -12,7 +12,7 @@ app.use(cors());
 
 app.use(
   cors({
-    origin: ["http://localhost:5173", "https://clubsphere-appp.netlify.app"],
+    origin: ["http://localhost:5173", "https://clubsphereee.netlify.app/"],
     credentials: true,
   }),
 );
