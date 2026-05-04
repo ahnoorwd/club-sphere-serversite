@@ -12,12 +12,9 @@ app.use(cors());
 
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-       "https://clubsphere-appp.netlify.app"
-    ],
+    origin: ["http://localhost:5173", "https://clubsphere-appp.netlify.app"],
     credentials: true,
-  })
+  }),
 );
 
 app.use(express.json());
@@ -102,6 +99,17 @@ async function run() {
     //     res.status(500).send({ error: "Failed to fetch clubs" });
     //   }
     // });
+
+    const clubsCollection = client.db("clubSphereDB").collection("clubs");
+
+    app.get("/clubs", async (req, res) => {
+      const result = await clubsCollection.find().toArray();
+      res.send(result);
+    });
+
+
+
+    
 
     // 04|10|26
 
@@ -1123,6 +1131,7 @@ async function run() {
           .toArray();
 
         res.send(result);
+        1;
       } catch (error) {
         res.status(500).send({ error: "Failed to fetch payment history" });
       }
