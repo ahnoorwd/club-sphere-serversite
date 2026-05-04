@@ -100,17 +100,7 @@ async function run() {
     //   }
     // });
 
-    const clubsCollection = client.db("clubSphereDB").collection("clubs");
-
-    app.get("/clubs", async (req, res) => {
-      const result = await clubsCollection.find().toArray();
-      res.send(result);
-    });
-
-
-
     
-
     // 04|10|26
 
     //   app.get("/clubs", async (req, res) => {
@@ -1153,7 +1143,6 @@ run().catch(console.dir);
 app.get("/", (req, res) => {
   res.send("ClubSphere Server Running");
 });
-module.exports = app;
 
 // app.listen(port, () => {
 //   console.log(`Server running on port ${port}`);
